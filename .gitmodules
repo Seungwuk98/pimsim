@@ -1,0 +1,6 @@
+[submodule "third-party/doctest"]
+	path = third-party/doctest
+	url = https://github.com/doctest/doctest.git
+[submodule "third-party/DRAMsim3"]
+	path = third-party/DRAMsim3
+	url = https://github.com/umd-memsys/DRAMsim3.git
