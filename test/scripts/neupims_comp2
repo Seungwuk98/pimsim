@@ -1,0 +1,73 @@
+# gbuf
+# 1 2 3 4 
+
+# bank0
+# row(0) 1.5 -3.5 1 -1.1
+
+# bank1
+# row(0) 1.2 -5 3 1.8
+
+# == result ==
+# bank0 
+# row(1) -6.9 7.4 
+
+# create memory / controller
+create memory Neupims DDR4_8Gb_x16_2133
+create controller Neupims 0
+scope 1
+
+# store gbuf data
+write 0x0 1 f16
+write 0x2 2 f16
+write 0x4 3 f16 
+write 0x6 4 f16
+
+# gwrite
+buffer store $0 encode 0 ch=0
+gwrite $0 0x0
+
+# pim_header (activate bank=0, 1)
+pim_header $0 0b11
+
+# store matrix data (bank=0)
+buffer store $1 encode 0 ch=0 ra=0 bg=0 ba=0 row=0 col=0
+buffer store $2 encode 0 ch=0 ra=0 bg=0 ba=0 row=0 col=2
+buffer store $3 encode 0 ch=0 ra=0 bg=0 ba=0 row=0 col=4
+buffer store $4 encode 0 ch=0 ra=0 bg=0 ba=0 row=0 col=6
+
+write $1 1.5 f16
+write $2 -3.5 f16
+write $3 1 f16
+write $4 -1.1 f16
+
+# store matrix data (bank=1)
+buffer store $1 encode 0 ch=0 ra=0 bg=0 ba=1 row=0 col=0
+buffer store $2 encode 0 ch=0 ra=0 bg=0 ba=1 row=0 col=2
+buffer store $3 encode 0 ch=0 ra=0 bg=0 ba=1 row=0 col=4
+buffer store $4 encode 0 ch=0 ra=0 bg=0 ba=1 row=0 col=6
+
+write $1 1.2 f16
+write $2 -5 f16
+write $3 3 f16
+write $4 1.8 f16
+
+# comp
+buffer store $5 encode 0 ch=0 row=0
+comp $5
+
+# read_res
+buffer store $6 encode 0 ch=0 ra=0 bg=0 ba=0 row=1 col=0
+buffer store $8 encode 0 ch=0 ra=0 bg=0 ba=0 row=1 col=4 # for verification dummy value
+write $8 111 f16
+read_res $0 $6
+
+
+# show_res for debugging
+show_res $0
+
+# verify
+buffer store $7 encode 0 ch=0 ra=0 bg=0 ba=0 row=1 col=2
+verify $6 -6.9 f16 
+verify $7 7.4 f16 
+verify $8 111 f16
+

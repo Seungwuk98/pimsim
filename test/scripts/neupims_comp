@@ -1,0 +1,16 @@
+create memory Neupims DDR4_8Gb_x16_2133
+create controller Neupims 0
+scope 1
+buffer store $0 0x0
+buffer store $1 0x2
+write $0 1.5 f16
+write $1 2.5 f16
+buffer store $2 encode 0 ch=0
+gwrite $2 $0
+buffer store $3 encode 0 ch=0 row=0
+pim_header $2 0b1
+comp $3
+read_res $2 $0
+show_res $2 
+verify $0 8.5 f16
+

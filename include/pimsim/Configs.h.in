@@ -1,0 +1,7 @@
+#ifndef PIMSIM_CONFIG_H
+#define PIMSIM_CONFIG_H
+
+#define PIMSIM_LOG_DIR "@PROJECT_BINARY_DIR@/logs"
+#define DRAMSIM3_CONFIG_DIR "@PROJECT_BINARY_DIR@/configs"
+
+#endif // PIMSIM_CONFIG_H
