@@ -6,12 +6,7 @@ namespace pimsim {
 
 NeupimsChannel::NeupimsChannel(Context *ctx,
                                std::vector<std::unique_ptr<Rank>> &&ranks)
-    : NewtonChannel(TypeID<NeupimsChannel>, ctx, std::move(ranks)),
-      pimHeaderBits(0) {}
-
-unsigned NeupimsChannel::headerLength() const {
-  return std::popcount(pimHeaderBits);
-}
+    : PIMChannel(TypeID<NeupimsChannel>, ctx, std::move(ranks)) {}
 
 llvm::SmallVector<f16> NeupimsChannel::readResult() const {
   llvm::SmallVector<f16> result;
@@ -56,21 +51,6 @@ void NeupimsChannel::comp() {
     }
   }
 }
-
-void NeupimsChannel::readRes(const dramsim3::Address &addr) {
-  llvm::SmallVector<Byte> tempBuffer;
-  llvm::SmallVector<f16> result = readResult();
-  size_t dataSize = result.size() * sizeof(f16);
-  tempBuffer.resize(dataSize);
-  std::memcpy(tempBuffer.data(), result.data(), dataSize);
-
-  auto written = getParentMemory()->write(tempBuffer, addr.channel, addr.rank,
-                                          addr.bankgroup, addr.bank, addr.row,
-                                          addr.column);
-  assert(written == dataSize && "Did not write all result data back to memory");
-}
-
-void NeupimsChannel::pimHeader(size_t bits) { pimHeaderBits = bits; }
 
 bool NeupimsChannel::classof(const Channel *channel) {
   return TypeID<NeupimsChannel> == channel->getTypeID();

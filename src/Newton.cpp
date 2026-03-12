@@ -125,16 +125,11 @@ int Newton::showGBuffer(llvm::ArrayRef<llvm::StringRef> args) {
 
 NewtonChannel::NewtonChannel(Context *ctx,
                              std::vector<std::unique_ptr<Rank>> &&rks)
-    : Channel(TypeID<NewtonChannel>, ctx, std::move(rks)) {}
+    : PIMChannel(TypeID<NewtonChannel>, ctx, std::move(rks)) {}
 
 NewtonChannel::NewtonChannel(size_t typeID, Context *ctx,
                              std::vector<std::unique_ptr<Rank>> &&rks)
-    : Channel(typeID, ctx, std::move(rks)) {}
-
-void NewtonChannel::initializeGlobalBuffer() {
-  auto columnSize = getParentMemory()->getConfig().columns;
-  globalBuffer.buffer.resize(columnSize, 0);
-}
+    : PIMChannel(typeID, ctx, std::move(rks)) {}
 
 void NewtonChannel::comp() {
   if (globalBuffer.buffer.size() == 0) {
@@ -169,6 +164,7 @@ llvm::SmallVector<f16> NewtonChannel::readResult() const {
       for (size_t b = 0; b < config.banks; ++b) {
         NewtonBank *bank = llvm::cast<NewtonBank>(bankGroup->getBank(b));
         result.emplace_back(bank->addResult);
+        bank->addResult = f16(0); // reset result after reading
       }
     }
   }
@@ -176,34 +172,9 @@ llvm::SmallVector<f16> NewtonChannel::readResult() const {
   return result;
 }
 
-void NewtonChannel::readRes(const dramsim3::Address &addr) {
-  llvm::SmallVector<Byte> tempBuffer;
-  llvm::SmallVector<f16> result = readResult();
-  size_t dataSize = result.size() * sizeof(f16);
-  tempBuffer.resize(dataSize);
-  std::memcpy(tempBuffer.data(), result.data(), dataSize);
-
-  auto written = getParentMemory()->write(tempBuffer, addr.channel, addr.rank,
-                                          addr.bankgroup, addr.bank, addr.row,
-                                          addr.column);
-  assert(written == dataSize && "Did not write all result data back to memory");
-}
-
-void NewtonChannel::gwrite(const dramsim3::Address &addr) {
-  if (globalBuffer.buffer.size() == 0) {
-    initializeGlobalBuffer();
-  }
-
-  size_t dataSize =
-      getParentMemory()->getConfig().columns; // assuming full row activation
-  auto readData =
-      getParentMemory()->read(globalBuffer.buffer, addr.channel, addr.rank,
-                              addr.bankgroup, addr.bank, addr.row, addr.column);
-  assert(readData == dataSize && "Did not read all data for global buffer");
-}
-
 bool NewtonChannel::classof(const Channel *channel) {
-  return ClassOf::classof(channel) || llvm::isa<NeupimsChannel>(channel);
+  return channel->getTypeID() == TypeID<NewtonChannel> ||
+         llvm::isa<NeupimsChannel>(channel);
 }
 
 void NewtonBankGroup::gact(size_t row) {

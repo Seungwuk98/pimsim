@@ -19,23 +19,15 @@ private:
   int pimPrecharge(llvm::ArrayRef<llvm::StringRef> args);
 };
 
-class NeupimsChannel : public NewtonChannel {
+class NeupimsChannel
+    : public PIMChannel<NeupimsChannel, NewtonChannel, HeaderedChannelTrait> {
 public:
   NeupimsChannel(Context *ctx, std::vector<std::unique_ptr<Rank>> &&ranks);
 
   llvm::SmallVector<f16> readResult() const override;
-  void readRes(const dramsim3::Address &addr) override;
-  virtual void pimHeader(size_t bits);
   void comp() override;
 
   static bool classof(const Channel *channel);
-
-  size_t getPimHeaderBits() const { return pimHeaderBits; }
-
-private:
-  unsigned headerLength() const;
-
-  size_t pimHeaderBits;
 };
 
 class NeupimsDualRBBank : public NewtonBank {

@@ -4,6 +4,7 @@
 #include "common.h"
 #include "pimsim/DefaultDRAM.h"
 #include "pimsim/Memory.h"
+#include "pimsim/PIMSupport.h"
 #include <format>
 
 namespace pimsim {
@@ -31,18 +32,13 @@ private:
   int showGBuffer(llvm::ArrayRef<llvm::StringRef> args);
 };
 
-class NewtonChannel : public Channel, public ClassOf<NewtonChannel, Channel> {
+class NewtonChannel
+    : public PIMChannel<NewtonChannel, Channel, BufferedChannelTrait> {
 public:
   NewtonChannel(Context *ctx, std::vector<std::unique_ptr<Rank>> &&ranks);
 
-  virtual llvm::SmallVector<f16> readResult() const;
-  virtual void comp();
-  virtual void readRes(const dramsim3::Address &addr);
-  virtual void gwrite(const dramsim3::Address &addr);
-
-  struct GlobalBuffer {
-    llvm::SmallVector<Byte> buffer;
-  };
+  llvm::SmallVector<f16> readResult() const override;
+  void comp() override;
 
   void inspectGlobalBuffer(llvm::raw_ostream &os) {
     if (globalBuffer.buffer.size() == 0) {
@@ -52,8 +48,6 @@ public:
                            globalBuffer.buffer.size(), "Global Buffer:");
   }
 
-  llvm::ArrayRef<Byte> getGlobalBuffer() const { return globalBuffer.buffer; }
-
   static bool classof(const Channel *channel);
 
 protected:
@@ -62,11 +56,8 @@ protected:
 
   friend class NewtonBank;
   friend class NewtonFastBank;
-  void initializeGlobalBuffer();
 
   friend class Serde<NewtonChannel>;
-
-  GlobalBuffer globalBuffer;
 };
 
 class NewtonBankGroup : public BankGroup,
