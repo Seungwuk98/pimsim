@@ -31,7 +31,7 @@ llvm::SmallVector<f16> NeupimsChannel::readResult() const {
   return result;
 }
 
-void NeupimsChannel::comp() {
+void NeupimsChannel::comp(size_t col) {
   assert(headerLength() > 0 &&
          "PIM header must have at least one bit set for computation");
   const auto &config = getParentMemory()->getConfig();
@@ -44,7 +44,7 @@ void NeupimsChannel::comp() {
         if (header & 1) {
           NeupimsDualRBBank *bank =
               llvm::cast<NeupimsDualRBBank>(bankGroup->getBank(b));
-          bank->comp();
+          bank->comp(col);
         }
         header >>= 1;
       }
@@ -86,12 +86,18 @@ void NeupimsDualRBBank::write(size_t column, const Byte *src, size_t size) {
   memcpy(pimBuffer.buffer.data() + column, src, size);
 }
 
-void NeupimsDualRBBank::comp() {
+static constexpr size_t CHUNK_SIZE = 16; // 32 bytes for 16 f16 elements
+
+void NeupimsDualRBBank::comp(size_t col) {
   assert(pimBuffer.isOpen && "Row buffer must be open to perform computation");
 
-  addResult = doCompf16(
-      pimBuffer.buffer,
-      llvm::cast<NeupimsChannel>(getParentChannel())->getGlobalBuffer());
+  llvm::ArrayRef<Byte> rowBufferData(pimBuffer.buffer);
+
+  llvm ::ArrayRef<Byte> globalBufferData =
+      llvm::cast<NeupimsChannel>(getParentChannel())->getGlobalBuffer();
+
+  addResult = doCompf16(rowBufferData.slice(col, CHUNK_SIZE * sizeof(f16)),
+                        globalBufferData.slice(col, CHUNK_SIZE * sizeof(f16)));
 }
 
 void NeupimsDualRBBank::doActivateHook(size_t row) {
@@ -287,7 +293,7 @@ int NeupimsController::pimHeader(llvm::ArrayRef<llvm::StringRef> args) {
 
 int NeupimsController::comp(llvm::ArrayRef<llvm::StringRef> args) {
   if (args.size() != 1) {
-    getContext()->getERR() << "Usage: comp <channel_address>\n";
+    getContext()->getERR() << "Usage: comp <ch_row_col_address>\n";
     return -1;
   }
 
@@ -342,7 +348,7 @@ int NeupimsController::comp(llvm::ArrayRef<llvm::StringRef> args) {
       }
     }
   }
-  neupimsChannel->comp();
+  neupimsChannel->comp(addr.column);
   return 0;
 }
 

@@ -35,7 +35,7 @@ int Newton::printHelp() const {
   DefaultDRAM::printHelp();
   os << "Newton Commands:\n";
   os << "  help                           - Show this help message\n";
-  os << "  comp                           - Perform computation on all banks\n";
+  os << "  comp <ch_col_address>          - Perform computation on all banks\n";
   os << "  read_res <address>             - Read computation result back to "
         "memory at <address>\n";
   os << "  gact <address>                 - Activate all banks with data from "
@@ -49,14 +49,16 @@ int Newton::printHelp() const {
 
 int Newton::comp(llvm::ArrayRef<llvm::StringRef> args) {
   if (args.size() != 1) {
-    getContext()->getERR() << "Usage: comp <address>\n";
+    getContext()->getERR() << "Usage: comp <ch_col_address>\n";
     return -1;
   }
   size_t address = parseAddress(args[0], getContext());
   dramsim3::Address dramAddr = getDRAMAddress(getConfig(), address);
   Channel *channel = getChannel(dramAddr.channel);
+
+  size_t col = dramAddr.column;
   NewtonChannel *newtonChannel = llvm::cast<NewtonChannel>(channel);
-  newtonChannel->comp();
+  newtonChannel->comp(col);
   return 0;
 }
 
@@ -131,7 +133,7 @@ NewtonChannel::NewtonChannel(size_t typeID, Context *ctx,
                              std::vector<std::unique_ptr<Rank>> &&rks)
     : PIMChannel(typeID, ctx, std::move(rks)) {}
 
-void NewtonChannel::comp() {
+void NewtonChannel::comp(size_t col) {
   if (globalBuffer.buffer.size() == 0) {
     getContext()->getERR()
         << "Global buffer is not initialized. Use gwrite command to "
@@ -191,12 +193,20 @@ NewtonBank::NewtonBank(size_t typeID, Context *ctx, size_t numRows,
                        size_t columnSize)
     : Bank(typeID, ctx, numRows, columnSize) {}
 
-void NewtonBank::comp() {
+static constexpr size_t CHUNK_SIZE = 16; // 32 bytes for 16 f16 elements
+
+void NewtonBank::comp(size_t col) {
   assert(rowBuffer.isOpen && "Row must be open to perform computation");
-  // For simplicity, we perform addition of all f16 elements in the row buffer
-  addResult = doCompf16(
-      rowBuffer.buffer,
-      llvm::cast<NewtonChannel>(getParentChannel())->getGlobalBuffer());
+
+  assert(col + CHUNK_SIZE * sizeof(f16) <= getColumnSize() &&
+         "Column index out of bounds for computation");
+
+  llvm::ArrayRef<Byte> vectorBuf(
+      llvm::cast<NewtonChannel>(getParentChannel())->globalBuffer.buffer);
+  llvm::ArrayRef<Byte> rowBuf = rowBuffer.buffer;
+
+  addResult = doCompf16(vectorBuf.slice(col, CHUNK_SIZE * sizeof(f16)),
+                        rowBuf.slice(col, CHUNK_SIZE * sizeof(f16)));
 }
 
 bool NewtonBank::classof(const Bank *bank) {
@@ -304,7 +314,10 @@ void NewtonController::printHelp() const {
   llvm::raw_ostream &os = getContext()->getOS();
   DefaultDRAMController::printHelp();
   os << "NewtonController Commands:\n";
-  os << "  comp <address>                 - Trigger computation on the channel "
+  os << "  comp <ch_row_col_address>                       - Trigger "
+        "computation "
+        "on the "
+        "channel "
         "specified "
         "by <address>\n";
   os << "  read_res <channel_address> <result_address> - Read computation "
@@ -319,7 +332,7 @@ void NewtonController::printHelp() const {
 
 int NewtonController::comp(llvm::ArrayRef<llvm::StringRef> args) {
   if (args.size() != 1) {
-    getContext()->getERR() << "Usage: comp <channel_address>\n";
+    getContext()->getERR() << "Usage: comp <ch_row_col_address>\n";
     return -1;
   }
 
@@ -359,7 +372,7 @@ int NewtonController::comp(llvm::ArrayRef<llvm::StringRef> args) {
     }
   }
 
-  newtonChannel->comp();
+  newtonChannel->comp(dramAddr.column);
   return 0;
 }
 

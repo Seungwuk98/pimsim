@@ -11,7 +11,7 @@ class PIMChannel : public ParentChannel, public Traits<ConcreteChannel>... {
 public:
   using ParentChannel::ParentChannel;
 
-  virtual void comp() = 0;
+  virtual void comp(size_t col) = 0;
   virtual llvm::SmallVector<f16> readResult() const = 0;
 
   void readRes(const dramsim3::Address &addr) {

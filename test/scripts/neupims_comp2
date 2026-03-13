@@ -52,7 +52,7 @@ write $3 3 f16
 write $4 1.8 f16
 
 # comp
-buffer store $5 encode 0 ch=0 row=0
+buffer store $5 encode 0 ch=0 row=0 col=0
 comp $5
 
 # read_res

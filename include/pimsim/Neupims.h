@@ -25,7 +25,7 @@ public:
   NeupimsChannel(Context *ctx, std::vector<std::unique_ptr<Rank>> &&ranks);
 
   llvm::SmallVector<f16> readResult() const override;
-  void comp() override;
+  void comp(size_t col) override;
 
   static bool classof(const Channel *channel);
 };
@@ -41,7 +41,7 @@ public:
     pimBuffer.isOpen = false;
   }
   void write(size_t column, const Byte *src, size_t size) override;
-  void comp() override;
+  void comp(size_t col) override;
 
   void doActivateHook(size_t row) override;
 

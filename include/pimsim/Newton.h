@@ -38,7 +38,7 @@ public:
   NewtonChannel(Context *ctx, std::vector<std::unique_ptr<Rank>> &&ranks);
 
   llvm::SmallVector<f16> readResult() const override;
-  void comp() override;
+  void comp(size_t col) override;
 
   void inspectGlobalBuffer(llvm::raw_ostream &os) {
     if (globalBuffer.buffer.size() == 0) {
@@ -72,7 +72,7 @@ class NewtonBank : public Bank, public ClassOf<NewtonBank, Bank> {
 public:
   NewtonBank(Context *ctx, size_t numRows, size_t columnSize);
 
-  virtual void comp();
+  virtual void comp(size_t col);
 
   f16 getAddResult() const { return addResult; }
 
