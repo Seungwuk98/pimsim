@@ -127,6 +127,14 @@ public:
                        DefaultDRAMController::getExecutorName());
   }
 
+  int comp(Memory *memory, dramsim3::Address chAddr, size_t col);
+
+  int gwrite(Memory *memory, dramsim3::Address chAddr,
+             llvm::ArrayRef<Byte> data);
+
+  int readRes(Memory *memory, dramsim3::Address chAddr,
+              llvm::MutableArrayRef<Byte> result);
+
 private:
   void printHelp() const;
   virtual int comp(llvm::ArrayRef<llvm::StringRef> args);

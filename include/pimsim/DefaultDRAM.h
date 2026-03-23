@@ -1,10 +1,12 @@
 #ifndef PIMSIM_DEFAULT_DRAM_H
 #define PIMSIM_DEFAULT_DRAM_H
 
+#include "common.h"
 #include "configuration.h"
 #include "pimsim/Controller.h"
 #include "pimsim/Memory.h"
 #include "llvm/ADT/APFloat.h"
+#include "llvm/ADT/ArrayRef.h"
 #include "llvm/Support/Casting.h"
 #include <format>
 
@@ -42,6 +44,11 @@ public:
     return std::format("{} - DefaultDRAMController",
                        Controller::getExecutorName());
   }
+
+  virtual int read(Memory *memory, dramsim3::Address address,
+                   llvm::MutableArrayRef<Byte> out);
+  virtual int write(Memory *memory, dramsim3::Address address,
+                    llvm::ArrayRef<Byte> data);
 
 protected:
   void printHelp() const;

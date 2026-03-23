@@ -38,6 +38,9 @@ public:
   std::string getExecutorName() const override { return "Controller"; }
 
   std::pair<Memory *, dramsim3::Address> decodeAddress(size_t address) const;
+  std::pair<size_t, dramsim3::Address>
+  decodeAddressWithMemoryIndex(size_t address) const;
+
   size_t encodeAddress(int memoryIndex, int channel, int rank, int bankgroup,
                        int bank, int row, int column) const;
 
@@ -84,9 +87,6 @@ protected:
   parseBufferAddress(llvm::ArrayRef<llvm::StringRef> args) const;
 
   std::pair<Memory *, dramsim3::Address> getAddress(llvm::StringRef arg) const;
-
-  std::pair<size_t, dramsim3::Address>
-  decodeAddressWithMemoryIndex(size_t address) const;
 
   std::pair<Memory *, dramsim3::Address> bufferOut(size_t idx) const;
   void bufferShow(llvm::raw_ostream &os, size_t idx) const;

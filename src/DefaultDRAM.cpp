@@ -1,6 +1,7 @@
 #include "pimsim/DefaultDRAM.h"
 #include "common.h"
 #include "pimsim/TypeSupport.h"
+#include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/FunctionExtras.h"
 #include "llvm/ADT/StringSwitch.h"
@@ -404,18 +405,31 @@ int DefaultDRAMController::read(llvm::ArrayRef<llvm::StringRef> args) {
     return -1;
   }
 
-  auto defaultDRAM = llvm::cast<DefaultDRAM>(memory);
-  auto bank = defaultDRAM->getChannel(memAddress.channel)
-                  ->getRank(memAddress.rank)
-                  ->getBankGroup(memAddress.bankgroup)
-                  ->getBank(memAddress.bank);
-
-  assert(bank && "Bank should not be null");
   std::vector<Byte> data(typeSize);
 
-  memory->read(data, memAddress.channel, memAddress.rank, memAddress.bankgroup,
-               memAddress.bank, memAddress.row, memAddress.column);
+  if (int result = read(memory, memAddress, data)) {
+    return result;
+  }
   printer(getContext()->getOS(), data);
+  return 0;
+}
+
+int DefaultDRAMController::read(Memory *memory, dramsim3::Address address,
+                                llvm::MutableArrayRef<Byte> out) {
+  if (!memory) {
+    getContext()->getERR() << "Memory is null\n";
+    return -1;
+  }
+
+  auto defaultDRAM = llvm::cast<DefaultDRAM>(memory);
+  auto bank = defaultDRAM->getChannel(address.channel)
+                  ->getRank(address.rank)
+                  ->getBankGroup(address.bankgroup)
+                  ->getBank(address.bank);
+  assert(bank && "Bank should not be null");
+
+  memory->read(out, address.channel, address.rank, address.bankgroup,
+               address.bank, address.row, address.column);
   return 0;
 }
 
@@ -440,13 +454,6 @@ int DefaultDRAMController::write(llvm::ArrayRef<llvm::StringRef> args) {
     return -1;
   }
 
-  auto defaultDRAM = llvm::cast<DefaultDRAM>(memory);
-  auto bank = defaultDRAM->getChannel(memAddress.channel)
-                  ->getRank(memAddress.rank)
-                  ->getBankGroup(memAddress.bankgroup)
-                  ->getBank(memAddress.bank);
-  assert(bank && "Bank should not be null");
-
   std::vector<Byte> bytes(typeSize);
   if (isInt) {
     uint64_t value = 0;
@@ -469,9 +476,28 @@ int DefaultDRAMController::write(llvm::ArrayRef<llvm::StringRef> args) {
     memcpy(bytes.data(), &intValue, typeSize);
   }
 
-  memory->write(bytes, memAddress.channel, memAddress.rank,
-                memAddress.bankgroup, memAddress.bank, memAddress.row,
-                memAddress.column);
+  if (int result = write(memory, memAddress, bytes)) {
+    return result;
+  }
+  return 0;
+}
+
+int DefaultDRAMController::write(Memory *memory, dramsim3::Address address,
+                                 llvm::ArrayRef<Byte> data) {
+  if (!memory) {
+    getContext()->getERR() << "Memory is null\n";
+    return -1;
+  }
+
+  auto defaultDRAM = llvm::cast<DefaultDRAM>(memory);
+  auto bank = defaultDRAM->getChannel(address.channel)
+                  ->getRank(address.rank)
+                  ->getBankGroup(address.bankgroup)
+                  ->getBank(address.bank);
+  assert(bank && "Bank should not be null");
+
+  memory->write(data, address.channel, address.rank, address.bankgroup,
+                address.bank, address.row, address.column);
   return 0;
 }
 

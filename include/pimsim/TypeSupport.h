@@ -26,6 +26,110 @@ using i64 = int64_t;
 
 struct __Float16 {
   uint16_t data;
+
+  __Float16() : data(0) {}
+  __Float16(const __Float16 &other) = default;
+  __Float16(uint16_t bits) : data(bits) {}
+  __Float16(float value) : data(fromFloat(value).data) {}
+  __Float16 &operator=(uint16_t bits) {
+    data = bits;
+    return *this;
+  }
+  __Float16 &operator=(const __Float16 &other) {
+    data = other.data;
+    return *this;
+  }
+  __Float16 &operator=(float value) {
+    *this = fromFloat(value);
+    return *this;
+  }
+
+  operator uint16_t() const { return data; }
+
+  static __Float16 fromBits(uint16_t bits) {
+    __Float16 f;
+    f.data = bits;
+    return f;
+  }
+
+  static __Float16 fromFloat(float value) {
+    llvm::APFloat apValue(value);
+    bool lose;
+    apValue.convert(llvm::APFloat::IEEEhalf(),
+                    llvm::APFloat::rmNearestTiesToEven, &lose);
+    return fromBits(
+        static_cast<uint16_t>(apValue.bitcastToAPInt().getZExtValue()));
+  }
+
+  __Float16 operator+(const __Float16 &other) const {
+    llvm::APFloat a(llvm::APFloat::IEEEhalf(),
+                    llvm::APInt(16, static_cast<uint16_t>(data)));
+    llvm::APFloat b(llvm::APFloat::IEEEhalf(),
+                    llvm::APInt(16, static_cast<uint16_t>(other.data)));
+    a.add(b, llvm::APFloat::rmNearestTiesToEven);
+    bool lose;
+    a.convert(llvm::APFloat::IEEEhalf(), llvm::APFloat::rmNearestTiesToEven,
+              &lose);
+    return fromBits(static_cast<uint16_t>(a.bitcastToAPInt().getZExtValue()));
+  }
+
+  __Float16 operator*(const __Float16 &other) const {
+    llvm::APFloat a(llvm::APFloat::IEEEhalf(),
+                    llvm::APInt(16, static_cast<uint16_t>(data)));
+    llvm::APFloat b(llvm::APFloat::IEEEhalf(),
+                    llvm::APInt(16, static_cast<uint16_t>(other.data)));
+    a.multiply(b, llvm::APFloat::rmNearestTiesToEven);
+    bool lose;
+    a.convert(llvm::APFloat::IEEEhalf(), llvm::APFloat::rmNearestTiesToEven,
+              &lose);
+    return fromBits(static_cast<uint16_t>(a.bitcastToAPInt().getZExtValue()));
+  }
+
+  __Float16 operator-(const __Float16 &other) const {
+    llvm::APFloat a(llvm::APFloat::IEEEhalf(),
+                    llvm::APInt(16, static_cast<uint16_t>(data)));
+    llvm::APFloat b(llvm::APFloat::IEEEhalf(),
+                    llvm::APInt(16, static_cast<uint16_t>(other.data)));
+    a.subtract(b, llvm::APFloat::rmNearestTiesToEven);
+    bool lose;
+    a.convert(llvm::APFloat::IEEEhalf(), llvm::APFloat::rmNearestTiesToEven,
+              &lose);
+    return fromBits(static_cast<uint16_t>(a.bitcastToAPInt().getZExtValue()));
+  }
+
+  __Float16 operator/(const __Float16 &other) const {
+    llvm::APFloat a(llvm::APFloat::IEEEhalf(),
+                    llvm::APInt(16, static_cast<uint16_t>(data)));
+    llvm::APFloat b(llvm::APFloat::IEEEhalf(),
+                    llvm::APInt(16, static_cast<uint16_t>(other.data)));
+    a.divide(b, llvm::APFloat::rmNearestTiesToEven);
+    bool lose;
+    a.convert(llvm::APFloat::IEEEhalf(), llvm::APFloat::rmNearestTiesToEven,
+              &lose);
+    return fromBits(static_cast<uint16_t>(a.bitcastToAPInt().getZExtValue()));
+  }
+
+  __Float16 operator-() const {
+    llvm::APFloat a(llvm::APFloat::IEEEhalf(),
+                    llvm::APInt(16, static_cast<uint16_t>(data)));
+    a.changeSign();
+    bool lose;
+    a.convert(llvm::APFloat::IEEEhalf(), llvm::APFloat::rmNearestTiesToEven,
+              &lose);
+    return fromBits(static_cast<uint16_t>(a.bitcastToAPInt().getZExtValue()));
+  }
+
+  __Float16 operator+() const { return *this; }
+
+  __Float16 operator+=(const __Float16 &other) { return *this = *this + other; }
+  __Float16 operator-=(const __Float16 &other) { return *this = *this - other; }
+  __Float16 operator*=(const __Float16 &other) { return *this = *this * other; }
+  __Float16 operator/=(const __Float16 &other) { return *this = *this / other; }
+
+  bool operator==(const __Float16 &other) const { return data == other.data; }
+  bool operator!=(const __Float16 &other) const { return data != other.data; }
+
+  bool equal(const __Float16 &other, size_t maxULP) const;
 };
 using f16 = __Float16;
 
@@ -135,8 +239,9 @@ template <typename T> struct FloatPrinter {
     memcpy(&value, data.data(), sizeof(T));
     llvm::APFloat apValue(
         *TypeSupport<T>::getSemantics(),
-        llvm::APInt(sizeof(T) * 8,
-                    llvm::bit_cast<typename IsFloat<T>::bitRep>(value)));
+        llvm::APInt(
+            sizeof(T) * 8,
+            *reinterpret_cast<const typename IsFloat<T>::bitRep *>(&value)));
     llvm::SmallVector<char, 16> floatStr;
     apValue.toString(floatStr, TypeSupport<T>::dataWidth());
     os << llvm::StringRef(floatStr.data(), floatStr.size());
@@ -178,7 +283,7 @@ template <typename T> struct FloatVerifier {
     llvm::APFloat apValue(
         *TypeSupport<T>::getSemantics(),
         llvm::APInt(sizeof(T) * 8,
-                    llvm::bit_cast<typename IsFloat<T>::bitRep>(value)));
+                    *reinterpret_cast<typename IsFloat<T>::bitRep *>(&value)));
 
     llvm::APFloat expectedValue(*TypeSupport<T>::getSemantics());
     auto status = expectedValue.convertFromString(
@@ -193,6 +298,15 @@ template <typename T> struct FloatVerifier {
     return ulp < MAX_ULP_DIFF;
   }
 };
+
+inline bool __Float16::equal(const __Float16 &other,
+                             size_t maxULP = MAX_ULP_DIFF) const {
+  llvm::APFloat a(llvm::APFloat::IEEEhalf(),
+                  llvm::APInt(16, static_cast<uint16_t>(data)));
+  llvm::APFloat b(llvm::APFloat::IEEEhalf(),
+                  llvm::APInt(16, static_cast<uint16_t>(other.data)));
+  return FloatVerifier<f16>::ulpDiff(a, b) <= maxULP;
+}
 
 template <>
 struct TypeSupport<float> : FloatPrinter<float>, FloatVerifier<float> {

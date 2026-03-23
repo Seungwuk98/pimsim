@@ -19,7 +19,7 @@ llvm::SmallVector<f16> NeupimsChannel::readResult() const {
     auto rank = ranks[r].get();
     for (size_t bg = 0; bg < config.bankgroups; ++bg) {
       auto bankGroup = rank->getBankGroup(bg);
-      for (size_t b = 0; b < config.banks; ++b) {
+      for (size_t b = 0; b < config.banks_per_group; ++b) {
         if (header & 1) {
           NewtonBank *bank = llvm::cast<NewtonBank>(bankGroup->getBank(b));
           result.emplace_back(bank->getAddResult());
@@ -40,7 +40,7 @@ void NeupimsChannel::comp(size_t col) {
     auto rank = ranks[r].get();
     for (size_t bg = 0; bg < config.bankgroups; ++bg) {
       auto bankGroup = rank->getBankGroup(bg);
-      for (size_t b = 0; b < config.banks; ++b) {
+      for (size_t b = 0; b < config.banks_per_group; ++b) {
         if (header & 1) {
           NeupimsDualRBBank *bank =
               llvm::cast<NeupimsDualRBBank>(bankGroup->getBank(b));
@@ -175,7 +175,7 @@ int Neupims::pimHeader(llvm::ArrayRef<llvm::StringRef> args) {
   }
 
   const auto &config = getConfig();
-  size_t maxBit = config.ranks * config.bankgroups * config.banks;
+  size_t maxBit = config.ranks * config.bankgroups * config.banks_per_group;
   size_t mask = (1ULL << maxBit) - 1;
   if (bitsValue > mask) {
     getContext()->getERR() << "Bits value exceeds maximum allowed for "
@@ -278,7 +278,7 @@ int NeupimsController::pimHeader(llvm::ArrayRef<llvm::StringRef> args) {
   }
 
   const auto &config = memory->getConfig();
-  size_t maxBit = config.ranks * config.bankgroups * config.banks;
+  size_t maxBit = config.ranks * config.bankgroups * config.banks_per_group;
   size_t mask = (1ULL << maxBit) - 1;
   if (bitsValue > mask) {
     getContext()->getERR() << "Bits value exceeds maximum allowed for "
@@ -317,7 +317,7 @@ int NeupimsController::comp(llvm::ArrayRef<llvm::StringRef> args) {
     auto rank = neupimsChannel->getRank(r);
     for (size_t bg = 0; bg < config.bankgroups; ++bg) {
       auto bankGroup = rank->getBankGroup(bg);
-      for (size_t b = 0; b < config.banks; ++b) {
+      for (size_t b = 0; b < config.banks_per_group; ++b) {
         auto bank = bankGroup->getBank(b);
         bool isActive = header & 1;
         header >>= 1;

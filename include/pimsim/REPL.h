@@ -35,8 +35,6 @@ public:
   bool runScript(llvm::StringRef scriptPath);
 
 private:
-  std::unique_ptr<dramsim3::Config> loadMemoryConfig(llvm::StringRef arg) const;
-
   void printHelp() const;
   void printGlobalHelp() const;
   void printHistory() const;
@@ -48,7 +46,7 @@ private:
 
   template <MemoryType T, typename... Args>
   void loadAndCreateMemory(llvm::StringRef configPath, Args &&...args) {
-    auto config = loadMemoryConfig(configPath);
+    auto config = context->createConfig(configPath);
     if (!config) {
       context->getERR() << "Failed to load memory configuration from file: "
                         << configPath << "\n";

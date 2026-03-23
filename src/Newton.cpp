@@ -145,10 +145,11 @@ void NewtonChannel::comp(size_t col) {
     for (size_t bgi = 0; bgi < getParentMemory()->getConfig().bankgroups;
          ++bgi) {
       auto bankGroup = rank->getBankGroup(bgi);
-      for (size_t bi = 0; bi < getParentMemory()->getConfig().banks; ++bi) {
+      for (size_t bi = 0; bi < getParentMemory()->getConfig().banks_per_group;
+           ++bi) {
         auto bank = bankGroup->getBank(bi);
         NewtonBank *newtonBank = llvm::cast<NewtonBank>(bank);
-        newtonBank->comp();
+        newtonBank->comp(col);
       }
     }
   }
@@ -157,16 +158,16 @@ void NewtonChannel::comp(size_t col) {
 llvm::SmallVector<f16> NewtonChannel::readResult() const {
   llvm::SmallVector<f16> result;
   auto &config = getParentMemory()->getConfig();
-  result.reserve(config.ranks * config.bankgroups * config.banks / 2);
+  result.reserve(config.ranks * config.bankgroups * config.banks_per_group / 2);
 
   for (size_t r = 0; r < config.ranks; ++r) {
     auto rank = ranks[r].get();
     for (size_t bg = 0; bg < config.bankgroups; ++bg) {
       auto bankGroup = rank->getBankGroup(bg);
-      for (size_t b = 0; b < config.banks; ++b) {
+      for (size_t b = 0; b < config.banks_per_group; ++b) {
         NewtonBank *bank = llvm::cast<NewtonBank>(bankGroup->getBank(b));
         result.emplace_back(bank->addResult);
-        bank->addResult = f16(0); // reset result after reading
+        bank->addResult = f16(0.0f); // reset result after reading
       }
     }
   }
@@ -205,8 +206,8 @@ void NewtonBank::comp(size_t col) {
       llvm::cast<NewtonChannel>(getParentChannel())->globalBuffer.buffer);
   llvm::ArrayRef<Byte> rowBuf = rowBuffer.buffer;
 
-  addResult = doCompf16(vectorBuf.slice(col, CHUNK_SIZE * sizeof(f16)),
-                        rowBuf.slice(col, CHUNK_SIZE * sizeof(f16)));
+  addResult += doCompf16(vectorBuf.slice(col, CHUNK_SIZE * sizeof(f16)),
+                         rowBuf.slice(col, CHUNK_SIZE * sizeof(f16)));
 }
 
 bool NewtonBank::classof(const Bank *bank) {
@@ -216,28 +217,21 @@ bool NewtonBank::classof(const Bank *bank) {
 f16 NewtonBank::doCompf16(llvm::ArrayRef<Byte> rowBufferData,
                           llvm::ArrayRef<Byte> globalBufferData) {
   size_t numElements = rowBufferData.size() / sizeof(f16);
-  llvm::APFloat sum(llvm::APFloat::IEEEhalf(), 0);
+  f16 sum;
 
   for (size_t i = 0; i < numElements; ++i) {
     f16 rowBufElem;
     std::memcpy(&rowBufElem, rowBufferData.data() + i * sizeof(f16),
                 sizeof(f16));
-    llvm::APFloat rowBufAP(llvm::APFloat::IEEEhalf(),
-                           llvm::APInt(16, rowBufElem.data));
 
     f16 globalBufElem;
     std::memcpy(&globalBufElem, globalBufferData.data() + i * sizeof(f16),
                 sizeof(f16));
-    llvm::APFloat globalBufAP(llvm::APFloat::IEEEhalf(),
-                              llvm::APInt(16, globalBufElem.data));
 
-    auto product = rowBufAP * globalBufAP;
-    sum.add(product, llvm::APFloat::rmNearestTiesToEven);
+    sum += rowBufElem * globalBufElem;
   }
 
-  f16 result;
-  result.data = static_cast<uint16_t>(sum.bitcastToAPInt().getZExtValue());
-  return result;
+  return sum;
 }
 
 NewtonFastBank::NewtonFastBank(Context *ctx, size_t numRows, size_t columnSize)
@@ -340,19 +334,22 @@ int NewtonController::comp(llvm::ArrayRef<llvm::StringRef> args) {
   if (!memory)
     return -1;
 
-  Channel *channel = memory->getChannel(dramAddr.channel);
-  NewtonChannel *newtonChannel = llvm::cast<NewtonChannel>(channel);
-  if (newtonChannel->getGlobalBuffer().empty()) {
-    getContext()->getERR()
-        << "Global buffer is empty. Please initialize it with gwrite command "
-           "before performing computation.\n";
+  size_t col = dramAddr.column;
+  return comp(memory, dramAddr, col);
+}
+
+int NewtonController::comp(Memory *memory, dramsim3::Address chAddr,
+                           size_t col) {
+  if (!memory) {
+    getContext()->getERR() << "Memory is null\n";
     return -1;
   }
 
-  size_t row = dramAddr.row;
+  Channel *channel = memory->getChannel(chAddr.channel);
+  NewtonChannel *newtonChannel = llvm::cast<NewtonChannel>(channel);
   const auto &config = memory->getConfig();
-  if (row >= config.rows) {
-    getContext()->getERR() << "Invalid row address: " << row << "\n";
+  if (chAddr.row >= config.rows) {
+    getContext()->getERR() << "Invalid row address: " << chAddr.row << "\n";
     return -1;
   }
 
@@ -360,19 +357,19 @@ int NewtonController::comp(llvm::ArrayRef<llvm::StringRef> args) {
     auto rank = newtonChannel->getRank(r);
     for (size_t bg = 0; bg < config.bankgroups; ++bg) {
       auto bankGroup = rank->getBankGroup(bg);
-      for (size_t b = 0; b < config.banks; ++b) {
+      for (size_t b = 0; b < config.banks_per_group; ++b) {
         NewtonBank *bank = llvm::cast<NewtonBank>(bankGroup->getBank(b));
         if (!bank->getRowBuffer().isOpen) {
-          bank->activate(row);
-        } else if (bank->getRowBuffer().row != row) {
+          bank->activate(chAddr.row);
+        } else if (bank->getRowBuffer().row != chAddr.row) {
           bank->precharge();
-          bank->activate(row);
+          bank->activate(chAddr.row);
         }
       }
     }
   }
 
-  newtonChannel->comp(dramAddr.column);
+  newtonChannel->comp(col);
   return 0;
 }
 
@@ -395,10 +392,36 @@ int NewtonController::readRes(llvm::ArrayRef<llvm::StringRef> args) {
     return -1;
   }
 
+  if (memory != resultMemory) {
+    getContext()->getERR()
+        << "Channel address and result address must be in the same memory\n";
+    return -1;
+  }
   Channel *channel = memory->getChannel(dramAddr.channel);
   NewtonChannel *newtonChannel = llvm::cast<NewtonChannel>(channel);
-
   newtonChannel->readRes(resultDramAddr);
+  return 0;
+}
+
+int NewtonController::readRes(Memory *memory, dramsim3::Address chAddr,
+                              llvm::MutableArrayRef<Byte> result) {
+  if (!memory) {
+    getContext()->getERR() << "Memory is null\n";
+    return -1;
+  }
+
+  Channel *channel = memory->getChannel(chAddr.channel);
+  NewtonChannel *newtonChannel = llvm::cast<NewtonChannel>(channel);
+  llvm::SmallVector<f16> compResult = newtonChannel->readResult();
+  if (result.size() < compResult.size() * sizeof(f16)) {
+    getContext()->getERR() << "Result buffer is too small. Required size: "
+                           << compResult.size() * sizeof(f16)
+                           << " bytes, but got " << result.size() << " bytes\n";
+    return -1;
+  }
+
+  std::memcpy(result.data(), compResult.data(),
+              compResult.size() * sizeof(f16));
   return 0;
 }
 
@@ -424,6 +447,31 @@ int NewtonController::gwrite(llvm::ArrayRef<llvm::StringRef> args) {
   }
 
   newtonChannel->gwrite(srcDramAddr);
+  return 0;
+}
+
+int NewtonController::gwrite(Memory *memory, dramsim3::Address chAddr,
+                             llvm::ArrayRef<Byte> data) {
+  if (!memory) {
+    getContext()->getERR() << "Memory is null\n";
+    return -1;
+  }
+
+  Channel *channel = memory->getChannel(chAddr.channel);
+  NewtonChannel *newtonChannel = llvm::cast<NewtonChannel>(channel);
+
+  if (newtonChannel->getGlobalBuffer().empty()) {
+    newtonChannel->initializeGlobalBuffer();
+  }
+
+  auto buffer = newtonChannel->getGlobalBuffer();
+  if (data.size() != buffer.size()) {
+    getContext()->getERR() << "Data size does not match global buffer size. "
+                           << "Expected: " << buffer.size() << " bytes\n";
+    return -1;
+  }
+
+  std::memcpy(buffer.data(), data.data(), data.size());
   return 0;
 }
 

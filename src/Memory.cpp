@@ -19,7 +19,7 @@ void Memory::printMemoryConfiguration() const {
   os << "  Channels: " << cfg.channels << "\n";
   os << "  Ranks per Channel: " << cfg.ranks << "\n";
   os << "  Bank Groups per Rank: " << cfg.bankgroups << "\n";
-  os << "  Banks per Bank Group: " << cfg.banks << "\n";
+  os << "  Banks per Bank Group: " << cfg.banks_per_group << "\n";
   os << "  Rows per Bank: " << cfg.rows << "\n";
   os << "  Columns per Row: " << cfg.columns << "\n";
   os << "  Shift Bits: " << cfg.shift_bits << "\n";
@@ -27,7 +27,7 @@ void Memory::printMemoryConfiguration() const {
 
 size_t Memory::totalMemorySize() const {
   size_t totalSize = getConfig().channels * getConfig().ranks *
-                     getConfig().bankgroups * getConfig().banks *
+                     getConfig().bankgroups * getConfig().banks_per_group *
                      getConfig().rows * getConfig().columns * sizeof(Byte);
   return totalSize;
 }
@@ -411,6 +411,7 @@ bool BankGroup::readFrom(const std::filesystem::path &path) {
   }
   return false;
 }
+
 Bank *BankGroup::getBank(size_t bank_id) {
   assert(bank_id < banks.size() && "Invalid bank ID");
   return banks[bank_id].get();

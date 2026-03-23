@@ -304,23 +304,4 @@ int REPL::acceptInput(llvm::StringRef input) {
   return scopeStack.back().executor->command(args);
 }
 
-std::unique_ptr<dramsim3::Config>
-REPL::loadMemoryConfig(llvm::StringRef arg) const {
-  std::filesystem::path configPath(arg.str());
-  if (configPath.is_relative()) {
-    std::filesystem::path configDir = DRAMSIM3_CONFIG_DIR;
-    if (!configPath.has_extension())
-      configPath.replace_extension(".ini");
-    configPath = configDir / configPath;
-  }
-
-  if (!std::filesystem::exists(configPath)) {
-    context->getERR() << "Configuration file does not exist: " << configPath
-                      << "\n";
-    return nullptr;
-  }
-  return std::make_unique<dramsim3::Config>(configPath.string(),
-                                            context->getLogDirectory().str());
-}
-
 } // namespace pimsim

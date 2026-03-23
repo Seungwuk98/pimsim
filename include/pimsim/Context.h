@@ -42,6 +42,8 @@ public:
   llvm::raw_ostream &getERR() { return err; }
   llvm::StringRef getLogDirectory() const { return logDirectory; }
 
+  std::unique_ptr<dramsim3::Config> createConfig(llvm::StringRef configFile);
+
 private:
   llvm::StringRef logDirectory;
   llvm::raw_ostream &out;
@@ -58,7 +60,7 @@ template <typename ConcreteMemory, typename ChannelT, typename RankT,
 struct MemoryConstructor {
   static std::unique_ptr<ConcreteMemory>
   construct(Context *ctx, std::unique_ptr<dramsim3::Config> config) {
-    auto banks = config->banks;
+    auto banks = config->banks_per_group;
     auto bankGroups = config->bankgroups;
     auto ranks = config->ranks;
     auto channels = config->channels;

@@ -1,6 +1,7 @@
 #include "pimsim/Controller.h"
 #include "pimsim/TypeSupport.h"
 #include "llvm/ADT/DenseMap.h"
+#include "llvm/Support/Format.h"
 
 namespace pimsim {
 
@@ -216,7 +217,7 @@ size_t Controller::encodeAddress(int memoryIndex, int channel, int rank,
     return static_cast<size_t>(-1);
   }
 
-  if (bank < -1 || bank >= static_cast<int>(mem->getConfig().banks)) {
+  if (bank < -1 || bank >= static_cast<int>(mem->getConfig().banks_per_group)) {
     getContext()->getERR() << "Invalid bank: " << bank << "\n";
     return static_cast<size_t>(-1);
   }
@@ -244,7 +245,6 @@ size_t Controller::encodeAddress(int memoryIndex, int channel, int rank,
   for (int i = 0; i < memoryIndex; ++i) {
     address += memories[i]->totalMemorySize();
   }
-
   return address;
 }
 
@@ -420,7 +420,7 @@ Controller::parseBufferAddress(llvm::ArrayRef<llvm::StringRef> args) const {
     getContext()->getERR() << "Invalid bank group: " << bankgroup << "\n";
     return {static_cast<size_t>(-1), dramsim3::Address()};
   }
-  if (bank < -1 || bank >= static_cast<int>(config.banks)) {
+  if (bank < -1 || bank >= static_cast<int>(config.banks_per_group)) {
     getContext()->getERR() << "Invalid bank: " << bank << "\n";
     return {static_cast<size_t>(-1), dramsim3::Address()};
   }

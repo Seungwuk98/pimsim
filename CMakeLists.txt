@@ -19,6 +19,17 @@ include_directories(third-party/doctest)
 include_directories(third-party/DRAMsim3/src)
 include_directories(third-party/DRAMsim3/ext/headers)
 
+option(PIMSIM_BUILD_DRIVER "Build the PIMSim driver" ON)
+
+if(PIMSIM_BUILD_DRIVER)
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fPIC")
+  add_subdirectory(driver)
+endif()
+
 add_subdirectory(include)
 add_subdirectory(src)
 add_subdirectory(tools)
+
+
+
+

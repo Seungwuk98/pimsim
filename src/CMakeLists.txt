@@ -8,6 +8,7 @@ add_library(
   TypeSupport.cpp
   Controller.cpp
   Neupims.cpp
+  Context.cpp
 )
 
 target_link_libraries(PIMSimMemory PRIVATE dramsim3 ${llvm_libs})

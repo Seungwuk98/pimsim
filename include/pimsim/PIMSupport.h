@@ -61,14 +61,14 @@ public:
     llvm::SmallVector<Byte> buffer;
   };
 
-  llvm::ArrayRef<Byte> getGlobalBuffer() const { return globalBuffer.buffer; }
+  llvm::MutableArrayRef<Byte> getGlobalBuffer() { return globalBuffer.buffer; }
 
-protected:
   void initializeGlobalBuffer() {
     auto columnSize = this->derived()->getParentMemory()->getConfig().columns;
-    globalBuffer.buffer.resize(columnSize, 0);
+    globalBuffer.buffer.resize(columnSize);
   }
 
+protected:
   GlobalBuffer globalBuffer;
 };
 
